@@ -39,9 +39,24 @@ pub fn derive(input: TokenStream) -> TokenStream {
         }
     });
 
+    let builder_methods = fields.iter().map(|f| {
+        let name = &f.ident;
+        let ty = &f.ty;
+        quote! {
+            fn #name(&mut self, #name: #ty) -> &mut Self {
+                self.#name = Some(#name);
+                self
+            }
+        }
+    });
+
     let expanded = quote! {
         pub struct #builder_ident {
             #(#builder_fields,)*
+        }
+
+        impl #builder_ident {
+            #(#builder_methods)*
         }
 
         impl #input_ident {
