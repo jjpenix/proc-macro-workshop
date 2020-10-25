@@ -50,6 +50,13 @@ pub fn derive(input: TokenStream) -> TokenStream {
         }
     });
 
+    let input_fields = fields.iter().map(|f| {
+        let name = &f.ident;
+        quote! {
+            #name: self.#name.clone().ok_or_else(|| "Not implemented")?
+        }
+    });
+
     let expanded = quote! {
         pub struct #builder_ident {
             #(#builder_fields,)*
@@ -57,6 +64,12 @@ pub fn derive(input: TokenStream) -> TokenStream {
 
         impl #builder_ident {
             #(#builder_methods)*
+
+            pub fn build(&mut self) -> Result<#input_ident, Box<dyn std::error::Error>> {
+                Ok(Command {
+                    #(#input_fields,)*                 
+                })
+            }
         }
 
         impl #input_ident {
