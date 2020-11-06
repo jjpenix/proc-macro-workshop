@@ -8,6 +8,8 @@ use syn::{parse_macro_input, DeriveInput};
 pub fn derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
+    // dbg!(input.clone());
+
     // fetch name, make name + Builder version
     let input_ident = &input.ident;
     let builder_name = format!("{}Builder", input_ident);
@@ -26,7 +28,11 @@ pub fn derive(input: TokenStream) -> TokenStream {
 
     let builder_fields = fields.iter().map(|f| {
         let name = &f.ident;
-        let ty = &f.ty;
+        let ty = match get_inner_ty(&f.ty) {
+            Some(s) => s,
+            None => f.ty.clone(),
+        };
+        // let ty = &f.ty;
         quote! {
             #name: std::option::Option<#ty>
         }
@@ -41,7 +47,12 @@ pub fn derive(input: TokenStream) -> TokenStream {
 
     let builder_methods = fields.iter().map(|f| {
         let name = &f.ident;
-        let ty = &f.ty;
+        let ty = match get_inner_ty(&f.ty) {
+            Some(s) => s,
+            None => f.ty.clone(),
+        };
+        // let ty = &f.ty;
+
         quote! {
             fn #name(&mut self, #name: #ty) -> &mut Self {
                 self.#name = Some(#name);
@@ -52,8 +63,15 @@ pub fn derive(input: TokenStream) -> TokenStream {
 
     let input_fields = fields.iter().map(|f| {
         let name = &f.ident;
-        quote! {
-            #name: self.#name.clone().ok_or_else(|| "Not implemented")?
+
+        if get_inner_ty(&f.ty).is_none() {
+            quote! {
+                #name: self.#name.clone().ok_or_else(|| "Not implemented")?
+            }
+        } else {
+            quote! {
+                #name: self.#name.clone()
+            }
         }
     });
 
@@ -67,7 +85,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
 
             pub fn build(&mut self) -> Result<#input_ident, Box<dyn std::error::Error>> {
                 Ok(Command {
-                    #(#input_fields,)*                 
+                    #(#input_fields,)*
                 })
             }
         }
@@ -82,4 +100,31 @@ pub fn derive(input: TokenStream) -> TokenStream {
     };
 
     TokenStream::from(expanded)
+}
+
+// Check if type is Option<T>, if it is, return T
+fn get_inner_ty(ty: &syn::Type) -> Option<syn::Type> {
+    let segments = if let syn::Type::Path(syn::TypePath {
+        path: syn::Path { ref segments, .. },
+        ..
+    }) = ty
+    {
+        segments
+    } else {
+        panic!("could not fetch segments!");
+    };
+
+    if segments.first().unwrap().ident.ne("Option") {
+        return None;
+    }
+
+    match segments.first().unwrap().clone().arguments {
+        syn::PathArguments::AngleBracketed(s) => {
+            match s.args.first().unwrap() {
+                syn::GenericArgument::Type(t) => return Some(t.clone()),
+                _ => return None,
+            }
+        }
+        _ => return None,
+    }
 }
