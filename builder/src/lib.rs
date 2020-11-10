@@ -4,11 +4,11 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, DeriveInput};
 
-#[proc_macro_derive(Builder)]
+#[proc_macro_derive(Builder, attributes(builder))]
 pub fn derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
-    // dbg!(input.clone());
+    dbg!(input.clone());
 
     // fetch name, make name + Builder version
     let input_ident = &input.ident;
@@ -32,7 +32,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
             Some(s) => s,
             None => f.ty.clone(),
         };
-        // let ty = &f.ty;
+
         quote! {
             #name: std::option::Option<#ty>
         }
@@ -51,7 +51,11 @@ pub fn derive(input: TokenStream) -> TokenStream {
             Some(s) => s,
             None => f.ty.clone(),
         };
-        // let ty = &f.ty;
+
+        let each_attr = has_each_attr(&ty);
+        if each_attr.is_some() {
+            // TODO: Finish, need to extract inner type from vec as well as option
+        }
 
         quote! {
             fn #name(&mut self, #name: #ty) -> &mut Self {
