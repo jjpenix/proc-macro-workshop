@@ -29,7 +29,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
     let builder_fields = fields.iter().map(|f| {
         let name = &f.ident;
         let ty = &f.ty;
-        if get_inner_ty(ty, "Option").is_some() || has_each_attr(f).is_some() {
+        if get_inner_ty(ty, "Option").is_some() || has_each_attr(f) {
             quote! {
                 #name: #ty
             }
@@ -42,7 +42,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
 
     let builder_empty_fields = fields.iter().map(|f| {
         let name = &f.ident;
-        if has_each_attr(f).is_some() {
+        if has_each_attr(f) {
             quote! {
                 #name: std::vec::Vec::new()
             }
@@ -60,7 +60,11 @@ pub fn derive(input: TokenStream) -> TokenStream {
             None => f.ty.clone(),
         };
 
-        let each_attr = has_each_attr(&f);
+        let each_attr = match get_each_attr(&f) {
+            Ok(s) => s,
+            Err(e) => return e,
+        };
+
         match each_attr {
             Some(s) => {
                 let s = s.trim_end_matches("\"");
@@ -90,7 +94,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
             _ => {
                 quote! {
                     fn #name(&mut self, #name: #ty) -> &mut Self {
-                        self.#name = Some(#name);
+                        self.#name = std::option::Option::Some(#name);
                         self
                     }
                 }
@@ -101,7 +105,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
     let input_fields = fields.iter().map(|f| {
         let name = &f.ident;
 
-        if get_inner_ty(&f.ty, "Option").is_none() && has_each_attr(f).is_none() {
+        if get_inner_ty(&f.ty, "Option").is_none() && !has_each_attr(f) {
             quote! {
                 #name: self.#name.clone().ok_or_else(|| "Not implemented")?
             }
@@ -120,7 +124,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
         impl #builder_ident {
             #(#builder_methods)*
 
-            pub fn build(&mut self) -> Result<#input_ident, Box<dyn std::error::Error>> {
+            pub fn build(&mut self) -> std::result::Result<#input_ident, std::boxed::Box<dyn std::error::Error>> {
                 Ok(Command {
                     #(#input_fields,)*
                 })
@@ -164,9 +168,25 @@ fn get_inner_ty(ty: &syn::Type, outer_ty: &str) -> Option<syn::Type> {
     }
 }
 
-fn has_each_attr(field: &syn::Field) -> Option<std::string::String> {
+// returns true if we see something that MIGHT be an each field (includes ill-formatted fields)
+fn has_each_attr(field: &syn::Field) -> bool {
+    match get_each_attr(field) {
+        Ok(s) => return s.is_some(),
+        Err(_) => return true,
+    }
+}
+
+fn get_each_attr(
+    field: &syn::Field,
+) -> Result<Option<std::string::String>, proc_macro2::TokenStream> {
+    fn make_comp_error<T: quote::ToTokens>(
+        t: T,
+    ) -> Result<Option<std::string::String>, proc_macro2::TokenStream> {
+        Err(syn::Error::new_spanned(t, "expected `builder(each = \"...\")`").to_compile_error())
+    }
+
     if field.attrs.is_empty() {
-        return None;
+        return Ok(None);
     }
 
     for attr in &field.attrs {
@@ -189,18 +209,18 @@ fn has_each_attr(field: &syn::Field) -> Option<std::string::String> {
         match x {
             syn::NestedMeta::Meta(syn::Meta::NameValue(m)) => {
                 if m.path.segments.first().unwrap().ident.ne("each") {
-                    continue;
+                    return make_comp_error(meta_list);
                 }
 
                 if let syn::Lit::Str(ref s) = m.lit {
-                    return Some(s.value());
+                    return Ok(Some(s.value()));
                 } else {
-                    continue;
+                    return make_comp_error(meta_list);
                 }
             }
-            _ => continue,
+            _ => return make_comp_error(meta_list),
         }
     }
 
-    None
+    Ok(None)
 }
