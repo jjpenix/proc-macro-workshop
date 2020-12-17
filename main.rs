@@ -6,17 +6,18 @@
 // To run the code:
 //     $ cargo run
 
-use derive_builder::Builder;
+use sorted::sorted;
 
-type Option = ();
-type Some = ();
-type None = ();
-type Result = ();
-type Box = ();
+#[sorted]
+pub struct Error {
+    kind: ErrorKind,
+    message: String,
+}
 
-#[derive(Builder)]
-pub struct Command {
-    executable: String,
+enum ErrorKind {
+    Io,
+    Syntax,
+    Eof,
 }
 
 fn main() {}
