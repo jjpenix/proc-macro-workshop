@@ -37,20 +37,20 @@ impl VisitMut for MatchArmSort {
         for arm in &match_expr.arms {
             let path = get_pat_path(&arm.pat);
             if let Some(path) = path {
-                let path = get_path_as_string(&path);
+                let path_str = get_path_as_string(&path);
                 if seen_arms.is_empty() {
-                    seen_arms.push(path);
+                    seen_arms.push(path_str);
                     continue;
                 }
 
-                if path < *seen_arms.last().unwrap() {
-                    let insert_pos = seen_arms.binary_search(&path).unwrap_err();
-                    self.errors.push(Error::new(
-                        arm.span(),
-                        format!("{} should sort before {}", path, seen_arms[insert_pos]),
+                if path_str < *seen_arms.last().unwrap() {
+                    let insert_pos = seen_arms.binary_search(&path_str).unwrap_err();
+                    self.errors.push(Error::new_spanned(
+                        path,
+                        format!("{} should sort before {}", path_str, seen_arms[insert_pos]),
                     ));
                 } else {
-                    seen_arms.push(path);
+                    seen_arms.push(path_str);
                 }
             } else {
                 panic!("no name thing")
