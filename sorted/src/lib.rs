@@ -38,13 +38,20 @@ impl VisitMut for MatchArmSort {
             .retain(|a| a.path.get_ident().unwrap() != "sorted");
 
         let mut seen_arms = Vec::new();
+        let mut wild_seen = None;
         for arm in &match_expr.arms {
-            let path = get_pat_path(&arm.pat);
-            if let Some(path) = path {
+            if let Some(path) = get_pat_path(&arm.pat) {
                 let path_str = get_path_as_string(&path);
                 if seen_arms.is_empty() {
                     seen_arms.push(path_str);
                     continue;
+                }
+
+                if let Some(pat) = wild_seen {
+                    self.errors.push(Error::new_spanned(
+                        pat,
+                        "wild pattern should come last",
+                    ))
                 }
 
                 if path_str < *seen_arms.last().unwrap() {
@@ -57,6 +64,9 @@ impl VisitMut for MatchArmSort {
                 } else {
                     seen_arms.push(path_str);
                 }
+            } else if let syn::Pat::Wild(_) = &arm.pat {
+                wild_seen = Some(&arm.pat);
+                continue;
             } else {
                 self.errors
                     .push(Error::new_spanned(&arm.pat, "unsupported by #[sorted]"));
@@ -84,6 +94,7 @@ pub fn check(args: TokenStream, input: TokenStream) -> TokenStream {
 fn get_pat_path(pat: &syn::Pat) -> Option<syn::Path> {
     match pat {
         syn::Pat::TupleStruct(s) => Some(s.path.clone()),
+        syn::Pat::Ident(i) => Some(i.ident.clone().into()),
         _ => None,
     }
 }
