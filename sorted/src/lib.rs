@@ -33,6 +33,10 @@ impl VisitMut for MatchArmSort {
             return;
         }
 
+        match_expr
+            .attrs
+            .retain(|a| a.path.get_ident().unwrap() != "sorted");
+
         let mut seen_arms = Vec::new();
         for arm in &match_expr.arms {
             let path = get_pat_path(&arm.pat);
@@ -49,17 +53,16 @@ impl VisitMut for MatchArmSort {
                         path,
                         format!("{} should sort before {}", path_str, seen_arms[insert_pos]),
                     ));
+                    return;
                 } else {
                     seen_arms.push(path_str);
                 }
             } else {
-                panic!("no name thing")
+                self.errors
+                    .push(Error::new_spanned(&arm.pat, "unsupported by #[sorted]"));
+                return;
             }
         }
-
-        match_expr
-            .attrs
-            .retain(|a| a.path.get_ident().unwrap() != "sorted");
     }
 }
 
