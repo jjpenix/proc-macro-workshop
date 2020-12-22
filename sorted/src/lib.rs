@@ -28,34 +28,32 @@ impl VisitMut for MatchArmSort {
             .attrs
             .iter()
             .find(|a| a.path.get_ident().unwrap() == "sorted")
-            .is_some()
+            .is_none()
         {
-            let mut seen_arms = Vec::new();
-            for arm in &match_expr.arms {
-                let path = get_pat_path(&arm.pat);
-                if let Some(path) = path {
-                    let path = get_path_as_string(&path);
-                    if seen_arms.is_empty() {
-                        seen_arms.push(path);
-                        continue;
-                    }
+            return;
+        }
 
-                    if path < *seen_arms.last().unwrap() {
-                        let insert_pos = seen_arms.binary_search(&path).unwrap_err();
-                        self.errors.push(Error::new(
-                            arm.span(),
-                            format!(
-                                "{} should sort before {}",
-                                path, seen_arms[insert_pos]
-                            ),
-                        ));
-                    } else {
-                        seen_arms.push(path);
-                    }
-
-                } else {
-                    panic!("no name thing")
+        let mut seen_arms = Vec::new();
+        for arm in &match_expr.arms {
+            let path = get_pat_path(&arm.pat);
+            if let Some(path) = path {
+                let path = get_path_as_string(&path);
+                if seen_arms.is_empty() {
+                    seen_arms.push(path);
+                    continue;
                 }
+
+                if path < *seen_arms.last().unwrap() {
+                    let insert_pos = seen_arms.binary_search(&path).unwrap_err();
+                    self.errors.push(Error::new(
+                        arm.span(),
+                        format!("{} should sort before {}", path, seen_arms[insert_pos]),
+                    ));
+                } else {
+                    seen_arms.push(path);
+                }
+            } else {
+                panic!("no name thing")
             }
         }
 
